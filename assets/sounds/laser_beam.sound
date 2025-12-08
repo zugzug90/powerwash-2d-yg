@@ -1,0 +1,7 @@
+sound: "/assets/sounds/laser_beam.ogg"
+looping: 1
+group: "master"
+gain: 1.0
+pan: 0.0
+speed: 1.0
+loopcount: 0

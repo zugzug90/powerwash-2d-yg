@@ -1,0 +1,10 @@
+images {
+  image: "/assets/images/game_levels/level_1.png"
+}
+images {
+  image: "/assets/images/game_levels/level_2.png"
+}
+images {
+  image: "/assets/images/game_levels/level_3.png"
+}
+extrude_borders: 2

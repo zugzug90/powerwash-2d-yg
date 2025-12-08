@@ -1,0 +1,15 @@
+/.internal
+/build
+.externalToolBuilders
+.DS_Store
+Thumbs.db
+.lock-wscript
+*.pyc
+.project
+.cproject
+builtins
+.idea
+*.iml
+*.class
+**/target
+**/generated

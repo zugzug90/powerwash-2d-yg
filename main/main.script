@@ -1,0 +1,322 @@
+-- used assets section:
+-- <a href="https://www.flaticon.com/free-icons/hand" title="hand icons">Hand icons created by Pixel perfect - Flaticon</a>
+
+require "lib.game_rules_engine"
+require "lib.game_constants"
+require "lib.game_config"
+require "lib.game_integrations_sdk_holder"
+
+local game_features_manager = require "lib.game_features_manager"
+local game_features_callbacks_map =  require "lib.game_features_callbacks_map"
+local game_feature_spawn_manager =  require "lib.game_feature_spawn_manager"
+
+local saves_manager = require "lib.saves_manager"
+local monarch = require "monarch.monarch"
+local game_rules_engine_timer = timer
+local analytics_manager = require "lib.analytics_manager"
+local player_improvements_manager = require("lib.player_improvements_manager")
+local monetization_callbacks_handler = require("lib.monetization_callbacks_handler")
+local levels_manager = require("lib.levels_manager")
+local window_events_manager = require("lib.window_events_manager")
+
+local function call_restart_game_and_next_level_dialog_and_show_record_ribbon_if_needed(self)
+	if CALL_RESTART_GAME_DIALOG == true then
+		timer.delay(CALL_RESTART_GAME_DIALOG_DELAY_SEC, false, function()
+			monarch.show(hash("restart_and_next_level_game_screen"))
+			if SHOW_RECORD_RIBBON == true then
+				if PLAYER_DATA.max_score_record < PLAYER_DATA.game_actions then
+
+					PLAYER_DATA.max_score_record = PLAYER_DATA.game_actions
+					timer.delay(0.8, false, function()
+						msg.post(GUI_ID, MSG_GUI_SHOW_NEW_RECORD_RIBBON_RAW)
+					end)
+
+				end
+			end
+		end)
+	end
+end
+
+local function spawn_game_feature_if_needed(self)
+	print('spawn_game_feature_if_needed')
+
+	--local timerr_idd = game_rules_engine_timer.delay(2, false, function(self, timer_id, time_elapsed)
+		game_feature_spawn_manager.spawn_game_feature_if_needed(self, PLAYER_DATA)
+	--end)
+end
+
+local new_game_func = function(self)
+	pcall(function()
+		self.games_platform_integration.init_user_info({debug = DEBUG})
+	end)
+	PLAYER_DATA.level_completed_state = false
+
+	msg.post(OBJ_PLAYER_ID, MSG_NEW_GAME_RAW)
+	msg.post(CLEANABLE_OBJECT, MSG_NEW_GAME_RAW)
+	msg.post(GAME_CONTROLLER_ID, MSG_NEW_GAME_RAW)
+
+	msg.post(GUI_ID, MSG_GUI_SHOW_START_GAME_LABEL_RAW)
+	msg.post(GUI_ID, MSG_GUI_NEXT_LEVEL_RAW)
+
+	pprint('GPI.get_user_info()', GPI.get_user_info(), GPI.get_user_info().browser.lang)
+
+	local user_info = GPI.get_user_info()
+	if user_info and user_info.browser then
+		PLAYER_DATA.locale = user_info.browser.lang or PLAYER_DATA.locale
+		if DEBUG == true then
+			PLAYER_DATA.locale = DEBUG_LANGUAGE or 'en'
+		end
+		print('PLAYER_DATA.locale: [' .. PLAYER_DATA.locale .. ']')
+	end
+	msg.post(OBJ_TUTORIAL_HINT_ID, MSG_TUTORIAL_SHOW_HINT_RAW)
+	spawn_game_feature_if_needed(self)
+end
+
+local function disable_rewarded_ad_icon(self, button_id)
+	msg.post(GUI_ID, MSG_GUI_DISABLE_REWARDED_AD_ICON_RAW, {feature_id = button_id})
+end
+
+local function enable_game_feature_button(self, button_id)
+	msg.post(GUI_ID, MSG_GUI_ENABLE_GAME_FEATURE_BUTTON_RAW, {feature_id = button_id})
+end
+
+
+local function stop_game_feature_if_needed(self)
+	pcall(function()
+		local sender = resolve_msg_sender(self.rewarded_ad_flow_initiator_gui_id)
+		sender.post(self.rewarded_ad_flow_initiator_gui_id, MSG_GUI_STOP_GAME_FEATURE_ACTION_RAW, {feature_id = self.current_feature_id})
+		game_features_callbacks_map[self.current_feature_id].stop_callback(self, self.current_feature_id)
+	end)
+end
+
+function init(self)
+	self.games_platform_integration_init_done = false
+	self.games_platform_integration = require("lib.games_platform_integration")
+	GPI = self.games_platform_integration
+
+	 -- wait until init() has been called for all screen.script instances
+	self.timer = timer
+	self.game_started = false
+
+	window_events_manager.setup_unconditional_callbacks({
+		on_window_event_focus_lost = function()
+			msg.post(OBJ_PLAYER_ID, MSG_DISABLE_LASER)
+		end
+	})
+	window.set_listener(window_events_manager.window_callback)
+
+	PLAYER_DATA.max_score_record = saves_manager.get_saved_attribute("player_max_score_record") or 0
+	print('PLAYER_DATA.max_score_record', PLAYER_DATA.max_score_record)
+
+	--msg.post("@render:", "use_stretch_projection", { near = -1, far = 1 })
+	msg.post("@render:", "use_fixed_fit_projection", { near = -1, far = 1 })
+
+	splitmix64.randomseed(os.time())
+
+	-- on_new_game_callback
+	GAME_RULES_ENGINE.configure(function(delay)
+		print('on_new_game_callback')
+
+		PLAYER_DATA.current_level = saves_manager.get_saved_attribute('current_level') or 1
+		PLAYER_DATA.player_improvements = saves_manager.get_saved_attribute('player_improvements') or PLAYER_DATA.default_player_improvements
+		local loaded_weapon_stats = saves_manager.get_saved_attribute('weapon_stats') or {money_earned = 0}
+		PLAYER_DATA.weapon_stats = loaded_weapon_stats
+
+		pprint('PLAYER_DATA.player_improvements', PLAYER_DATA.player_improvements)
+		pprint('PLAYER_DATA.weapon_stats', PLAYER_DATA.weapon_stats)
+
+		if self.game_started == false then
+			msg.post(LEVEL_GENERATOR_ID, MSG_GENERATE_LEVEL, { level_id = PLAYER_DATA.current_level})
+		end
+
+		self.game_started = true
+
+		if delay then
+			game_rules_engine_timer.delay(delay, false, function()
+				print('new_game_func()')
+				new_game_func(self)
+			end)
+		else
+			new_game_func(self)
+		end
+
+		game_features_manager.init_game_feature_callbacks(disable_rewarded_ad_icon, enable_game_feature_button, function(self, feature_id)
+			print('[main.script] game_features_callbacks_map[feature_id](self, feature_id)', feature_id)
+			local current_level = PLAYER_DATA.current_level
+			game_features_callbacks_map[feature_id].callback(self, feature_id,
+					{
+						player_battery_capacity_level = player_improvements_manager.progression.battery_capacity_levels[PLAYER_DATA.player_improvements.battery_capacity_level],
+					    player_current_laser_energy = PLAYER_DATA.weapon_stats.laser_energy
+					},
+					-- cancellation_predicate_function
+					function(selff, feature_id, player_context_map, duration_seconds)
+						if PLAYER_DATA.weapon_stats.laser_energy <= 0 or current_level ~= PLAYER_DATA.current_level then
+							return true
+						else
+							return false
+						end
+					end
+			)
+		end)
+	end,
+	-- on_restart_game_callback
+	function()
+		print('restart_game  !')
+
+		PLAYER_DATA.level_completed_state = false
+
+		msg.post(GUI_ID, MSG_GUI_RESET_RAW)
+		msg.post(GUI_ID, MSG_GUI_HIDE_RESTART_GAME_LABEL_RAW)
+
+
+		GAME_RULES_ENGINE.on_new_game()
+	end,
+	-- on_next_game_step_callback
+	function()
+		msg.post(GAME_CONTROLLER_ID, MSG_NEXT_GAME_STEP_RAW)
+		print('next game step!')
+	end,
+	-- on_pre_next_game_step_callback
+	function()
+		print('on_pre_next_game_step_callback!')
+		msg.post(GUI_ID, MSG_GUI_HIDE_START_GAME_LABEL_RAW)
+
+	end,
+	-- on_game_over_callback
+	function()
+		print('game_over!')
+
+		call_restart_game_and_next_level_dialog_and_show_record_ribbon_if_needed(self)
+		stop_game_feature_if_needed(self)
+		GAME_RULES_ENGINE.on_player_stats_updated({to_persist = {weapon_stats = {money_earned = PLAYER_DATA.weapon_stats.money_earned or 0}}})
+	end,
+	-- on_camera_arrived_callback
+	function()
+		print('camera_arrived!')
+		msg.post(GAME_CONTROLLER_ID, MSG_CLEANUP_VISITED_SEGMENTS_RAW)
+	end,
+	-- on_player_stats_updated
+			function(player_stats)
+				for stat_name, value in pairs(player_stats.to_persist) do
+					saves_manager.save_attribute(stat_name, value)
+				end
+
+				local to_log_metrics = player_stats.to_log_metrics
+				if to_log_metrics then
+					for player_improvement_stat_name, player_improvement_value in pairs(to_log_metrics) do
+						if player_improvement_stat_name ~= 'laser_power_level_multiplier' then
+							analytics_manager.send_player_progression_metrics(player_improvement_stat_name, 'UpgradeButtonClicked', player_improvement_value)
+						end
+					end
+				end
+			end,
+	-- on_pre_next_level
+	function()
+		print('on_pre_next_level')
+
+		stop_game_feature_if_needed(self)
+
+		msg.post(OBJ_PLAYER_ID, MSG_DISABLE_LASER)
+
+		if PLAYER_DATA.current_level == 1 then
+			print('    - custom increment for level 1 completion: + $ ' .. tostring(MONEY_INCREMENT))
+			msg.post(OBJ_PLAYER_ID, MSG_INCREMENT_MONEY_EARNED, {increment = MONEY_INCREMENT})
+		end
+
+		analytics_manager.send_level_progression_metrics('Complete', PLAYER_DATA.current_level)
+		PLAYER_DATA.current_level = PLAYER_DATA.current_level + 1
+
+		if PLAYER_DATA.current_level > levels_manager.get_levels_count() then
+			PLAYER_DATA.current_level = 1
+		end
+
+		saves_manager.save_attribute("current_level", PLAYER_DATA.current_level)
+
+		PLAYER_DATA.level_completed_state = true
+
+
+		GAME_RULES_ENGINE.on_player_stats_updated({to_persist = {weapon_stats = {money_earned = PLAYER_DATA.weapon_stats.money_earned or 0}}})
+
+		msg.post(CLEANABLE_OBJECT, MSG_LEVEL_COMPLETE)
+
+		msg.post(GUI_ID, MSG_GUI_SHOW_COMPLETE_LEVEL_ANIMATION)
+		timer.delay(2, false, function()
+			msg.post(GUI_ID, MSG_GUI_HIDE_COMPLETE_LEVEL_ANIMATION)
+			call_restart_game_and_next_level_dialog_and_show_record_ribbon_if_needed(self)
+		end)
+	end,
+	-- on_next_level
+	function()
+		print('on_next_level_callback')
+		msg.post(LEVEL_GENERATOR_ID, MSG_GENERATE_LEVEL, { level_id = PLAYER_DATA.current_level})
+
+		new_game_func(self)
+	end,
+	-- on_window_event
+	function(lock_window_screen_manager) -- boolean lock_window_screen_manager or not
+		if lock_window_screen_manager == true then
+			window_events_manager.lock_events_handling()
+		elseif lock_window_screen_manager == false then
+			window_events_manager.unlock_events_handling()
+		end
+	end
+	)
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("init_game") then
+		GAME_RULES_ENGINE.on_new_game()
+	elseif message_id == MSG_BOOTSTRAP_INIT_GAME then
+		if self.games_platform_integration_init_done == false then
+			self.games_platform_integration.init(
+					{init_callback = function()
+						self.games_platform_integration_init_done = true
+
+						self.games_platform_integration.get_remote_config({}, function(self, err, result)
+							pprint('flags', result)
+							if result and result.pw2d_initial_level_custom_money_earned ~= nil then
+								pcall(function()
+									MONEY_INCREMENT = tonumber(result.pw2d_initial_level_custom_money_earned) or MONEY_INCREMENT
+									if jstodef then
+										html5.run( 'try {console.log("' .. '[INFO] ' .. 'MONEY_INCREMENT: ' .. tostring(result.pw2d_initial_level_custom_money_earned) .. '")} catch(error) {}' )
+									end
+								end)
+
+								pcall(function()
+									TILE_CRUSHER_ENERGY_DECREMENT_SIZE = tonumber(result.pw2d_energy_decrement_size) or TILE_CRUSHER_ENERGY_DECREMENT_SIZE
+									if jstodef then
+										html5.run( 'try {console.log("' .. '[INFO] ' .. 'TILE_CRUSHER_ENERGY_DECREMENT_SIZE: ' .. tostring(result.pw2d_energy_decrement_size) .. '")} catch(error) {}' )
+									end
+								end)
+
+								pcall(function()
+									TILE_CRUSHER_TILE_TILE_HP = tonumber(result.pw2d_tile_hp) or TILE_CRUSHER_TILE_TILE_HP
+									if jstodef then
+										html5.run( 'try {console.log("' .. '[INFO] ' .. 'TILE_CRUSHER_TILE_TILE_HP: ' .. tostring(result.pw2d_tile_hp) .. '")} catch(error) {}' )
+									end
+								end)
+
+								pcall(function()
+									TILE_CRUSHER_TILE_DAMAGE = tonumber(result.pw2d_tile_damage) or TILE_CRUSHER_TILE_DAMAGE
+									if jstodef then
+										html5.run( 'try {console.log("' .. '[INFO] ' .. 'TILE_CRUSHER_TILE_DAMAGE: ' .. tostring(result.pw2d_tile_damage) .. '")} catch(error) {}' )
+									end
+								end)
+							end
+						end)
+
+						msg.post("#", "init_game")
+					end
+					});
+		end
+	elseif message_id == MSG_PLAY_REWARDED_AD then
+		--PLAYER_DATA.features[message.feature_id] = true
+		print('[main]', MSG_PLAY_REWARDED_AD)
+		monetization_callbacks_handler.show_rewarded_ad(GPI, message.feature_id, message.rewarded_ad_flow_initiator_gui_id)
+	end
+
+end
+
+function on_input(self, action_id, action)
+
+end

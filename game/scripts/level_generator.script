@@ -1,0 +1,103 @@
+require "lib.game_config"
+require "lib.game_constants"
+local levels_manager = require("lib.levels_manager")
+
+function init(self)
+    self.dirt_spot_factory = "#dirt_spot_factory"
+    self.cleanable_width = 512
+
+    self.original_total_hp = 0
+    self.current_total_hp = 0
+    self.original_cleanable_pos = go.get_position(CLEANABLE_OBJECT)
+end
+
+function final(self)
+	-- Add finalization code here
+	-- Learn more: https://defold.com/manuals/script/
+	-- Remove this function if not needed
+end
+
+local reset_dirty_spots = function(self)
+    if self.dirt_spots then
+        for i, dirt_spot in pairs(self.dirt_spots) do
+            pcall(function()
+                msg.post(dirt_spot.go_id, MSG_STOP_HIT_CLEANABLE_DIRT_SPOT)
+            end)
+        end
+    end
+end
+
+local delete_dirty_spots = function(self)
+    if self.dirt_spots then
+        for i, dirt_spot in pairs(self.dirt_spots) do
+                pcall(function()
+                    msg.post(dirt_spot.go_id, MSG_STOP_HIT_CLEANABLE_DIRT_SPOT)
+                    local particlefx_url = msg.url(nil, dirt_spot.go_id, "particlefx")
+                    --go.delete(particlefx_url)
+                    go.delete(dirt_spot.go_id, true)
+                end)
+        end
+    end
+
+    self.dirt_spots = {}
+    self.dirt_spots_count = {}
+    self.original_total_hp = 0
+    self.current_total_hp = 0
+end
+
+local function update_cleanable_image(self, sprite_id)
+    sprite.play_flipbook(CLEANABLE_OBJECT .. "#sprite", sprite_id, function(self, message_id, message, sender)
+    end)
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == MSG_GENERATE_LEVEL then
+        delete_dirty_spots(self)
+        local level = levels_manager.get_level(PLAYER_DATA.current_level)
+        self.level = level
+        self.dirt_spots = level.dirt_spots
+
+        self.original_total_hp = #self.dirt_spots * TILE_CRUSHER_TILE_TILE_HP
+        self.current_total_hp = self.original_total_hp
+
+        local cleanable_pos = go.get_position(CLEANABLE_OBJECT)
+        cleanable_pos.x = self.original_cleanable_pos.x + (self.level.cleanable.x_offset or 0)
+        cleanable_pos.y = self.original_cleanable_pos.y
+        go.set_position(cleanable_pos, CLEANABLE_OBJECT)
+
+        for id, dirt_spot in pairs(self.dirt_spots) do
+            dirt_spot.go_id = factory.create(self.dirt_spot_factory, vmath.vector3(cleanable_pos.x - (self.level.cleanable.width or self.cleanable_width) / 2 + dirt_spot.pos.x,
+                    cleanable_pos.y - self.level.cleanable.height + dirt_spot.pos.y, Z_LAYER_TILE))
+            msg.post(dirt_spot.go_id, MSG_RECOLOR_DIRT_SPOT, {dirt_spot_color = dirt_spot.color or level.cleanable.dirt_spot_color, sprite_id = dirt_spot.sprite_id})
+            if message.level_id == 1 then
+                msg.post(dirt_spot.go_id, SHOW_TUTORIAL_HINT)
+            end
+        end
+
+        self.dirt_spots_count = #self.dirt_spots
+
+        local sprite_id = 'level_' .. message.level_id
+        if level.cleanable and level.cleanable.sprite_id then
+            sprite_id = level.cleanable.sprite_id
+        end
+        update_cleanable_image(self, sprite_id)
+        msg.post(GUI_ID, MSG_GUI_UPDATE_GAME_LEVEL_STATS, {progress = 0})
+
+    elseif message_id == MSG_DIRT_SPOT_DESTROYED then
+        self.dirt_spots_count = math.max(0, self.dirt_spots_count - 1)
+        if self.dirt_spots_count == 0 then
+            timer.delay(0.8, false, function()
+                reset_dirty_spots(self)
+                GAME_RULES_ENGINE.on_pre_next_level()
+            end)
+        end
+        self.current_total_hp = self.current_total_hp - TILE_CRUSHER_TILE_TILE_HP
+        msg.post(GUI_ID, MSG_GUI_UPDATE_GAME_LEVEL_STATS, {progress = (1 - self.current_total_hp / self.original_total_hp)})
+    elseif message_id == MSG_RESET_DIRT_SPOTS then
+        reset_dirty_spots(self)
+    end
+end
+
+function on_reload(self)
+    delete_dirty_spots(self)
+end

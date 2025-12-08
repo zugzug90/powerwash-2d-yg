@@ -1,0 +1,83 @@
+require("lib.game_config")
+require("lib.game_constants")
+require "lib.player_data_holder"
+
+local function turn_off_win_effect(self)
+    go.cancel_animations(CLEANABLE_GLOW_EFFECT_OBJECT_ID, "euler.z")
+    --go.cancel_animations(CLEANABLE_GLOW_EFFECT_OBJECT_ID, "scale")
+    msg.post(CLEANABLE_GLOW_EFFECT_OBJECT_ID .. '#sprite', "disable")
+
+    go.cancel_animations(".", "scale")
+    go.cancel_animations(".", "position")
+
+    go.set_position(self.original_pos, ".")
+    go.set_scale(self.original_scale, ".")
+end
+
+local function animate_win_effect(self)
+    msg.post(CLEANABLE_GLOW_EFFECT_OBJECT_ID .. '#sprite', "enable")
+    local pos = go.get_position()
+    local scale = go.get_scale()
+    pos.z = CLEANABLE_OBJECT_GLOW_EFFECT_Z_COORD
+    go.set_position(pos, CLEANABLE_GLOW_EFFECT_OBJECT_ID)
+    timer.delay(0.1, false, function()
+        go.animate(CLEANABLE_GLOW_EFFECT_OBJECT_ID, "euler.z", go.PLAYBACK_LOOP_FORWARD, -360, go.EASING_LINEAR, 60)
+    end)
+
+    go.animate(".", "scale", go.PLAYBACK_ONCE_PINGPONG, scale * 1.25, go.EASING_LINEAR, 0.4, 0, function()
+        --go.animate(".", "scale", go.PLAYBACK_ONCE_PINGPONG, 0.95, go.EASING_LINEAR, 0.16, 0, function() end)
+    end)
+
+    local new_pos = vmath.vector3(pos.x, pos.y * 1.55, pos.z)
+    go.animate(".", "position", go.PLAYBACK_ONCE_PINGPONG, new_pos, go.EASING_LINEAR, 0.4, 0, function()
+        --go.animate(".", "position", go.PLAYBACK_ONCE_PINGPONG, new_pos, go.EASING_LINEAR, 0.16, 0, function() end)
+        go.animate(".", "scale", go.PLAYBACK_LOOP_PINGPONG, scale * 1.25, go.EASING_LINEAR, 2, 0, function()
+            --go.animate(".", "scale", go.PLAYBACK_ONCE_PINGPONG, 0.95, go.EASING_LINEAR, 0.16, 0, function() end)
+        end)
+    end)
+end
+
+function init(self)
+	self.hp = TILE_CRUSHER_TILE_TILE_HP
+    self.original_hp = self.hp
+
+    self.dirty_tile = false
+    self.destroyed = false
+    self.particlefx_played = false
+    self.damage = TILE_CRUSHER_TILE_DAMAGE * PLAYER_DATA.player_improvements.laser_power_level * PLAYER_DATA.player_improvements.laser_power_level_multiplier
+
+    msg.post("#effects_sprite", "disable")
+    msg.post("#cover", "disable")
+
+    local pos = go.get_position()
+    pos.z = CLEANABLE_OBJECT_Z_COORD
+    go.set_position(pos, ".")
+
+    self.original_scale = go.get_scale()
+    self.original_pos = go.get_position()
+    turn_off_win_effect(self)
+end
+
+function final(self)
+    particlefx.stop("#particlefx")
+	go.delete('#particlefx')
+end
+
+
+local function recolor(self, sprite_id, color_vector)
+    go.set(sprite_id, "tint.x", color_vector.x / 255 or 1)
+    go.set(sprite_id, "tint.y", color_vector.y / 255 or 1)
+    go.set(sprite_id, "tint.z", color_vector.z / 255 or 1)
+end
+
+
+function fixed_update(self, dt)
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == MSG_LEVEL_COMPLETE then
+        animate_win_effect(self)
+    elseif message_id == MSG_NEW_GAME then
+        turn_off_win_effect(self)
+    end
+end

@@ -1,0 +1,555 @@
+require "lib.game_config"
+require "lib.game_constants"
+require "lib.game_rules_engine"
+require "lib.player_data_holder"
+require "lib.game_rules_engine"
+require "lib.go_registry"
+
+local locales = require("lib.locales")
+
+local druid = require("druid.druid")
+local game_features_manager = require "lib.game_features_manager"
+
+local function disable_complete_level_ribbon(self)
+    gui.set_enabled(gui.get_node("level_complete_box"), false)
+end
+
+local function animate_complete_level_ribbon(self)
+
+    gui.set_text(gui.get_node("level_complete_text_label"), locales.message(PLAYER_DATA.locale, GAME_MSG_LABEL_COMPLETE_LEVEL_RIBBON_TEXT))
+    msg.post(SOUND_MANAGER_ID, MSG_SOUND_PLAY, {sound_id = 'level_complete_bell_sound'})
+    local level_complete_box =  gui.get_node("level_complete_box")
+    gui.set_position(level_complete_box, RIBBON_HIDDEN_SOUTH_POS)
+    gui.set_enabled(gui.get_node("level_complete_box"), true)
+    gui.animate(level_complete_box, gui.PROP_POSITION, RIBBON_NORTH_POS, gui.EASING_LINEAR, 0.4, 0.0, function(self, node)
+        timer.delay(0.5, false, function()
+            gui.animate(level_complete_box, gui.PROP_POSITION, RIBBON_HIDDEN_NORTH_POS, gui.EASING_LINEAR, 0.4, 0.0, function(self, node)
+
+            end)
+        end)
+    end)
+end
+
+local function update_game_level_progress_bar(self, progress)
+    gui.set_color(gui.get_node("progress_bar_front"), COLOR_GREEN_PROGRESS_BAR_1)
+    if progress == 0 then
+        --gui.set_enabled(gui.get_node("progress_label"), false)
+        gui.set_text(gui.get_node("progress_label"), '0 %')
+        gui.set_enabled(gui.get_node("progress_bar_front"), false)
+        gui.set_scale(gui.get_node("progress_bar_front"), vmath.vector3(1, 1, 1))
+    else
+        gui.set_enabled(gui.get_node("progress_label"), true)
+        gui.set_enabled(gui.get_node("progress_bar_front"), true)
+
+        local progress_bar_full_length = 386
+        gui.set_text(gui.get_node("progress_label"), math.floor(progress * 100) .. ' %')
+        --gui.set_scale(gui.get_node("progress_bar_front"), math.floor(progress * progress_bar_full_length))
+
+        gui.animate(gui.get_node("progress_bar_front"), "scale.x", math.floor(progress * progress_bar_full_length), gui.EASING_LINEAR, 0.3, 0.0, nil, gui.PLAYBACK_ONCE_FORWARD)
+        gui.animate(gui.get_node("progress_bar_front"), gui.PROP_COLOR, COLOR_GREEN_PROGRESS_BAR_2, gui.EASING_LINEAR, 0.5, 0.0, nil, gui.PLAYBACK_ONCE_FORWARD)
+
+    end
+end
+
+local function disable_gui_elements(self)
+    gui.set_position(self.start_game_box, GUI_SOUTH_HIDDEN_POS)
+    gui.set_enabled(self.sounds_off_on_button_node, false)
+    gui.set_enabled(self.tg_group_link_button_node, false)
+
+end
+
+local function enable_gui_elements(self)
+    gui.set_enabled(self.sounds_off_on_button_node, true)
+    gui.set_enabled(self.tg_group_link_button_node, true)
+    gui.set_enabled(self.restart_game_box, true)
+end
+
+local function reset_ribbon_state(self)
+    gui.set_position(self.record_ribbon_container_box, RECORD_RIBBON_WEST_HIDDEN_POS)
+    gui.set_position(self.record_ribbon_blink_block_box, RECORD_RIBBON_WEST_HIDDEN_POS)
+end
+
+local function enable_debug_elements_if_needed(self)
+    local debug_label = gui.get_node('debug_label')
+    gui.set_text(debug_label, DEBUG_LABEL_TEXT)
+    if DEBUG == true then
+
+        gui.set_enabled(debug_label, true)
+    else
+        gui.set_enabled(debug_label, false)
+    end
+end
+
+local function tint_battery_gui_if_needed(self, stats)
+    if stats.laser_energy <= 6 then
+        gui.set_color(gui.get_node("energy_icon"), COLOR_TRANSPARENT_RED_75_PERCENT)
+        gui.set_color(gui.get_node("energy_label"), COLOR_TRANSPARENT_RED_75_PERCENT)
+    else
+        gui.set_color(gui.get_node("energy_icon"), COLOR_WHITE)
+        gui.set_color(gui.get_node("energy_label"), self.original_energy_label_color)
+    end
+end
+
+function final(self)
+    self.druid:final()
+end
+
+function update(self, dt)
+    self.druid:update(dt)
+
+    self.dt_cycles_passed = self.dt_cycles_passed + 1
+
+    if self.dt_cycles_passed > 2 then
+        if self.main_controller_called == false then
+            msg.post(MAIN_CONTROLLER_ID, MSG_BOOTSTRAP_INIT_GAME)
+            self.main_controller_called = true
+        end
+    end
+
+    tint_battery_gui_if_needed(self, { laser_energy = PLAYER_DATA.weapon_stats.laser_energy })
+end
+
+function on_input(self, action_id, action)
+    local res = self.druid:on_input(action_id, action)
+    return res
+end
+
+local function update_weapon_stats(self, stats)
+    --{laser_energy = message.laser_energy, money_earned = message.money_earned}
+    if stats.laser_energy then
+        gui.set_text(gui.get_node("energy_label"), math.floor(stats.laser_energy))
+        --tint_battery_gui_if_needed(self, stats)
+    end
+    if stats.money_earned then
+        gui.set_text(gui.get_node("money_earned_label"), math.floor(stats.money_earned))
+    end
+end
+
+function show_new_record_ribbon(self)
+    msg.post(SOUND_MANAGER_ID, MSG_SOUND_PLAY_RAW, {sound_id = "new_record_sound"})
+    gui.animate(self.record_ribbon_container_box, gui.PROP_POSITION, RECORD_RIBBON_CENTER_POS, gui.EASING_LINEAR, 0.2, 0.0, function(self, node)
+
+        gui.animate(self.record_ribbon_blink_block_box, gui.PROP_POSITION, RECORD_RIBBON_BLINK_EAST_POS, gui.EASING_LINEAR, 1.2, 0.4,
+                gui.animate(self.record_ribbon_container_box, gui.PROP_POSITION, RECORD_RIBBON_CENTER_POS, gui.EASING_LINEAR, 0.2, 0.0, function(self, node)
+
+                    gui.animate(self.record_ribbon_container_box, gui.PROP_POSITION, RECORD_RIBBON_EAST_POS, gui.EASING_LINEAR, 0.3, 1.2, function(self, node)
+                reset_ribbon_state(self)
+            end, gui.PLAYBACK_ONCE_FORWARD)
+        end, gui.PLAYBACK_ONCE_FORWARD), gui.PLAYBACK_ONCE_FORWARD)
+    end, gui.PLAYBACK_ONCE_FORWARD)
+end
+
+local function get_feature_name(self, button_id)
+    return locales.message(PLAYER_DATA.locale, self.game_feature_buttons[button_id].localization_msg_id)
+end
+
+local function stop_animate_powerup_fx_if_needed(self, button_id)
+    local button = self.game_feature_buttons[button_id]
+    if button then
+        local bg_fx_node = gui.get_node(button.bg_fx_node_id)
+        gui.cancel_animation(bg_fx_node, "euler.z")
+        gui.cancel_animation(bg_fx_node, "scale")
+
+        gui.set_enabled(bg_fx_node, false)
+    end
+end
+
+local function start_animate_powerup_fx_if_needed(self, button_id)
+    local button = self.game_feature_buttons[button_id]
+    if button then
+        local bg_fx_node = gui.get_node(button.bg_fx_node_id)
+        gui.set_enabled(bg_fx_node, true)
+        gui.animate(bg_fx_node, "euler.z", -360, gui.EASING_LINEAR, 60, 0.0, function(self, node)
+        end, gui.PLAYBACK_LOOP_PINGPONG)
+        gui.animate(bg_fx_node, "scale", 0.6, gui.EASING_LINEAR, 5, 0.0, function(self, node)
+        end, gui.PLAYBACK_LOOP_PINGPONG)
+    end
+end
+
+local function disable_button(self, button_id)
+    local node = self.game_feature_buttons[button_id].gui_node
+    local child_elements = gui.get_tree(node)
+
+    for id, el in pairs(child_elements) do
+        if el ~= node then
+            gui.set_color(el, COLOR_TRANSPARENT_50_PERCENT)
+        end
+
+    end
+
+    self.improvement_buttons[button_id].disabled = true
+end
+
+local function enable_rewarded_ad_icon(self, button_id)
+    local button = self.game_feature_buttons[button_id]
+    local child_elements = gui.get_tree(button.gui_node)
+
+    for id, el in pairs(child_elements) do
+
+        if id == hash(button.ad_gui_id) then
+            gui.set_color(el, COLOR_WHITE)
+            gui.set_enabled(el, true)
+        end
+    end
+
+end
+
+local function disable_rewarded_ad_icon(self, button_id)
+    local button = self.game_feature_buttons[button_id]
+    local child_elements = gui.get_tree(button.gui_node)
+
+    for id, el in pairs(child_elements) do
+
+        if id == hash(button.ad_gui_id) then
+            gui.set_color(el, COLOR_TRANSPARENT)
+            gui.set_enabled(el, false)
+        end
+    end
+
+end
+
+-- button_id == feature_id
+local function disable_game_feature_button(self, button_id, hide_ui_elements)
+    local button = self.game_feature_buttons[button_id]
+    if button then
+        button.disabled = true
+        local node = button.gui_node
+        local child_elements = gui.get_tree(node)
+        stop_animate_powerup_fx_if_needed(self, button_id)
+        if hide_ui_elements == true then
+            gui.set_enabled(node, false)
+        else
+            for id, el in pairs(child_elements) do
+                if el ~= node and el ~= gui.get_node(button.label) then
+                    gui.set_color(el, COLOR_TRANSPARENT_50_PERCENT)
+                end
+            end
+        end
+    end
+end
+
+local function disable_all_game_feature_buttons(self, hide_ui_elements)
+    for id, button in pairs(self.game_feature_buttons) do
+        disable_game_feature_button(self, id, hide_ui_elements)
+    end
+end
+
+local function set_label_text(self, button_id)
+    local button = self.game_feature_buttons[button_id]
+    if button then
+        gui.set_text(gui.get_node(button.label), locales.message(PLAYER_DATA.locale, button.localization_msg_id))
+    end
+end
+
+local function show_game_feature_timer(self, button_id)
+    local button = self.game_feature_buttons[button_id]
+    if button then
+        local timer_icon_node = gui.get_node(button.timer_icon_node_id)
+        gui.set_enabled(timer_icon_node, true)
+    end
+end
+
+local function hide_game_feature_timer(self, button_id)
+    local button = self.game_feature_buttons[button_id]
+    if button then
+        local timer_icon_node = gui.get_node(button.timer_icon_node_id)
+        gui.set_enabled(timer_icon_node, false)
+    end
+end
+
+-- button_id == feature_id
+local function enable_game_feature_button(self, button_id, reset_activated_and_unlocked_state)
+    local button = self.game_feature_buttons[button_id]
+    if button then
+        button.disabled = false
+        if reset_activated_and_unlocked_state == true then
+            button.activated = false
+            button.unlocked = false
+        end
+
+        local node = button.gui_node
+        local child_elements = gui.get_tree(node)
+
+        for id, el in pairs(child_elements) do
+            if el ~= node and el ~= gui.get_node(button.label) and el ~= gui.get_node(button.game_feature_timer_label_id) then
+                gui.set_color(el, COLOR_WHITE)
+            end
+        end
+
+        set_label_text(self, button_id)
+
+        --stop_animate_powerup_fx_if_needed(self, button_id)
+    end
+end
+
+local function update_game_feature_stats(self, button_id, stats)
+    if stats then
+        local button = self.game_feature_buttons[button_id]
+        if button then
+            local label = gui.get_node(button.game_feature_timer_label_id)
+            gui.set_text(label, string.format("%.1f", stats.duration_seconds_left))
+        end
+    end
+end
+
+local function spawn_game_feature_button(self, button_id, feature_icon_sprite_id)
+    local button = self.game_feature_buttons[button_id]
+    if button then
+        local node = button.gui_node
+
+        hide_game_feature_timer(self, button_id)
+        enable_rewarded_ad_icon(self, button_id)
+
+        button.disabled = false
+        button.activated = false
+        button.unlocked = false
+
+        gui.set_enabled(node, true)
+
+        local child_elements = gui.get_tree(node)
+
+        for id, el in pairs(child_elements) do
+            if el ~= node and el ~= gui.get_node(button.label) then
+                if el ~= gui.get_node(button.game_feature_timer_label_id) then
+                    gui.set_color(el, COLOR_WHITE)
+                else
+                    gui.set_color(el, button.original_labels_color)
+                end
+            end
+        end
+
+        local icon = gui.get_node(button.icon_node_id)
+        gui.play_flipbook(icon, feature_icon_sprite_id)
+
+        set_label_text(self, button_id)
+
+        print('start_animate_powerup_fx_if_needed(self, \'powerup_1\')', button_id)
+        start_animate_powerup_fx_if_needed(self, 'powerup_1')
+
+    end
+end
+
+local function reset_gui(self)
+    disable_complete_level_ribbon(self)
+    gui.set_position(self.start_game_box, GUI_SOUTH_HIDDEN_POS)
+    gui.set_position(self.restart_game_box, GUI_SOUTH_HIDDEN_POS)
+
+    gui.set_enabled(self.white_bg, false)
+
+    enable_gui_elements(self)
+    gui.set_color(self.white_bg, COLOR_WHITE)
+
+    disable_all_game_feature_buttons(self, true)
+    self.locked = false
+
+    update_game_level_progress_bar(self, self.current_progress or 0)
+
+    --spawn_game_feature_button(self, 'powerup_1')
+end
+
+local function powerup_1_callback(self)
+    if self.locked == true then
+        return
+    end
+    if self.game_feature_buttons.powerup_1.disabled == true then
+        return
+    end
+
+    game_features_manager.activate_feature_via_rewarded_ad(self, 'powerup_1', GUI_ID)
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == MSG_GUI_UPDATE_HP_GUI_ELEMENT then
+        if message.animate == true then
+
+            local node = gui.get_node("hp_box")
+            local hp_label = gui.get_node("hp_label")
+            gui.set_text(hp_label, PLAYER_DATA.hp)
+
+            gui.animate(node, gui.PROP_SCALE, 1.35, gui.EASING_LINEAR, 0.4, 0.0, nil, gui.PLAYBACK_ONCE_PINGPONG)
+
+            if message.add_hp == true then
+                gui.animate(node, gui.PROP_COLOR, COLOR_WHITE, gui.EASING_LINEAR, 0.4, 0.0, nil, gui.PLAYBACK_ONCE_FORWARD)
+            elseif message.remove_hp == true then
+                gui.animate(node, gui.PROP_COLOR, COLOR_TRANSPARENT_50_PERCENT, gui.EASING_LINEAR, 0.2, 0.0, nil, gui.PLAYBACK_ONCE_FORWARD)
+            end
+        end
+    elseif message_id == MSG_GUI_SHOW_START_GAME_LABEL then
+        print('MSG_GUI_SHOW_START_GAME_LABEL_RAW')
+
+        --[[gui.animate(self.start_game_box, gui.PROP_POSITION, GUI_CENTER_POS, gui.EASING_LINEAR, 0.4, 0.5,
+                function(self, node)
+                    msg.post(SOUND_MANAGER_ID, MSG_SOUND_PLAY_RAW, {sound_id = "pop_short"})
+                    end
+        , gui.PLAYBACK_ONCE_FORWARD)]]
+    elseif message_id == MSG_GUI_HIDE_START_GAME_LABEL then
+        gui.animate(self.start_game_box, gui.PROP_POSITION, GUI_SOUTH_HIDDEN_POS, gui.EASING_LINEAR, 0.4, 0.0, nil, gui.PLAYBACK_ONCE_FORWARD)
+    elseif message_id == MSG_GUI_SHOW_RESTART_GAME_LABEL then
+        print('MSG_GUI_SHOW_RESTART_GAME_LABEL_RAW')
+    elseif message_id == MSG_GUI_HIDE_RESTART_GAME_LABEL then
+        gui.animate(self.restart_game_box, gui.PROP_POSITION, GUI_SOUTH_HIDDEN_POS, gui.EASING_LINEAR, 0.4, 0.0, nil, gui.PLAYBACK_ONCE_FORWARD)
+    elseif message_id == MSG_GUI_WHITE_BG_BLINK then
+        print('MSG_GUI_WHITE_BG_BLINK')
+        gui.set_enabled(self.white_bg, true)
+        gui.animate(self.white_bg, gui.PROP_COLOR, COLOR_TRANSPARENT, gui.EASING_INEXPO, 0.4, 0.0, function()
+            print('gui.set_color(self.white_bg, COLOR_WHITE)')
+            gui.set_color(self.white_bg, COLOR_WHITE)
+            gui.set_enabled(self.white_bg, false)
+        end, gui.PLAYBACK_ONCE_FORWARD)
+    elseif message_id == MSG_GUI_RESET or message_id == MSG_GUI_NEXT_LEVEL  then
+        reset_gui(self)
+    elseif message_id == MSG_DEBUG_PRINT then
+        local debug_label = gui.get_node('debug_label')
+        gui.set_text(debug_label, message.text)
+    elseif message_id == MSG_GUI_SHOW_NEW_RECORD_RIBBON then
+        show_new_record_ribbon(self)
+    elseif message_id == MSG_UPDATE_WEAPON_STATS then
+        update_weapon_stats(self, {laser_energy = message.laser_energy, money_earned = message.money_earned})
+    elseif message_id == MSG_REWARD_GRANTED then
+        print('feature_id', message.feature_id)
+        game_features_manager.unlock_feature(self,
+                locales.message(PLAYER_DATA.locale, GAME_MSG_LABEL_NOTIFICATION_POWERUP_UNLOCKED) .. get_feature_name(self, message.feature_id),
+                message.feature_id
+        )
+    elseif message_id == MSG_GUI_DISABLE_REWARDED_AD_ICON then
+        disable_rewarded_ad_icon(self, message.feature_id)
+    elseif message_id == MSG_GUI_ENABLE_GAME_FEATURE_BUTTON then
+        enable_game_feature_button(self, message.feature_id)
+        timer.delay(0.3, false, function()
+            powerup_1_callback(self)
+        end)
+    elseif message_id == MSG_GUI_SPAWN_GAME_FEATURE then
+        if message.delay and message.delay > 0 then
+            timer.delay(message.delay, false, function()
+                spawn_game_feature_button(self, message.feature_id, message.feature_icon_sprite_id)
+            end)
+        else
+            spawn_game_feature_button(self, message.feature_id, message.feature_icon_sprite_id)
+        end
+
+    elseif message_id == MSG_GUI_UPDATE_GAME_FEATURE_STATS then
+        if message.feature_stopped == true then
+            disable_game_feature_button(self, message.feature_id, true)
+        else
+            show_game_feature_timer(self, message.feature_id)
+            update_game_feature_stats(self, message.feature_id, { duration_seconds_left = message.duration_seconds_left })
+        end
+    elseif message_id == MSG_GUI_STOP_GAME_FEATURE_ACTION then
+        disable_game_feature_button(self, message.feature_id, true)
+    elseif message_id == MSG_GUI_LOCK_CONTROLS then
+        self.locked = true
+    elseif message_id == MSG_GUI_UNLOCK_CONTROLS then
+        self.locked = false
+    elseif message_id == MSG_GUI_UPDATE_GAME_LEVEL_STATS then
+        self.current_progress = message.progress
+        update_game_level_progress_bar(self, message.progress)
+    elseif message_id == MSG_GUI_SHOW_COMPLETE_LEVEL_ANIMATION then
+        gui.play_particlefx(gui.get_node("vfx_bubbles_wall"))
+        animate_complete_level_ribbon(self)
+    elseif message_id == MSG_GUI_HIDE_COMPLETE_LEVEL_ANIMATION then
+        disable_complete_level_ribbon(self)
+    elseif message_id == MSG_DEBUG_MODE_ACTIVATED then
+        print('enable_debug_elements_if_needed(self)')
+        enable_debug_elements_if_needed(self)
+    elseif message_id == MSG_GUI_SHOW_BUBBLES_WALL then
+        gui.play_particlefx(gui.get_node("vfx_bubbles_wall"))
+    end
+
+    self.druid:on_message(message_id, message, sender)
+end
+
+function on_reload(self)
+    reset_gui(self)
+end
+
+local function turn_on_sounds(self)
+    msg.post(SOUND_MANAGER_ID, MSG_SOUND_ON_RAW)
+    PLAYER_DATA.music_started = true
+end
+
+local function turn_off_sounds(self)
+    msg.post(SOUND_MANAGER_ID, MSG_SOUND_OFF_RAW)
+    msg.post(SOUND_MANAGER_ID, MSG_SOUND_STOP_RAW, {sound_id = "game_powerup_duration_music"})
+    PLAYER_DATA.music_started = false
+end
+
+function init(self)
+
+    self.druid = druid.new(self)
+
+    self.dt_cycles_passed = 0
+    self.main_controller_called = false
+
+    self.start_game_box = gui.get_node("start_game_box")
+    self.restart_game_box = gui.get_node("restart_game_box")
+    self.white_bg = gui.get_node("white_bg")
+    self.record_ribbon_container_box = gui.get_node("record_ribbon_container_box")
+    self.record_ribbon_blink_block_box = gui.get_node("record_ribbon_blink_block_box")
+    self.original_energy_label_color = gui.get_color(gui.get_node("energy_label"))
+
+    gui.set_enabled(self.white_bg, false)
+    gui.set_color(self.white_bg, COLOR_TRANSPARENT)
+    gui.set_enabled(self.restart_game_box, false)
+
+    self.sounds_off_on_button_node = gui.get_node("sounds_off_on_button")
+    self.sounds_off_on_button_icon_box_node = gui.get_node("sounds_off_on_button_icon_box")
+    self.tg_group_link_button_node = gui.get_node("tg_group_link_button")
+    gui.set_texture(self.sounds_off_on_button_node, "gui")
+
+    enable_debug_elements_if_needed(self)
+
+    self.sounds_off_on_button = self.druid:new_button(self.sounds_off_on_button_node, function()
+
+        if PLAYER_DATA.sounds_off == false then
+            PLAYER_DATA.sounds_off = true
+            turn_off_sounds(self)
+
+            gui.play_flipbook(self.sounds_off_on_button_icon_box_node, "sounds_off_button")
+        else
+            PLAYER_DATA.sounds_off = false
+
+            turn_on_sounds(self)
+            gui.play_flipbook(self.sounds_off_on_button_icon_box_node, "sounds_on_button")
+        end
+
+        return true
+    end)
+
+    self.tg_group_link_button = self.druid:new_button(self.tg_group_link_button_node, function()
+        local success = sys.open_url("https://t.me/TheRoom606", {target = "_blank"})
+    end)
+
+    --reset_gui(self)
+
+    disable_gui_elements(self)
+
+    reset_ribbon_state(self)
+
+    self.game_feature_buttons = {
+        powerup_1 = {
+            disabled = false,
+            unlocked = false,
+            activated = false,
+            gui_node = gui.get_node("powerup_1_box"),
+            localization_msg_id = GAME_MSG_LABEL_POWERUP_1,
+            feature_name = locales.message(PLAYER_DATA.locale, GAME_MSG_LABEL_POWERUP_1),
+            label = 'powerup_1_label',
+            icon_node_id = 'powerup_1_icon',
+            ad_gui_id = 'powerup_1_ad_box',
+            bg_fx_node_id = 'powerup_1_icon_bg_fx',
+            game_feature_timer_label_id = 'powerup_1_timer_label',
+            timer_icon_node_id = 'powerup_1_timer_box',
+                                                 -- reddish color
+            original_labels_color = vmath.vector4(153 / 255, 51 / 255, 0 / 255, 1)
+        }
+    }
+
+    self.powerup_1_button = self.druid:new_button(gui.get_node("powerup_1_box"), function()
+        powerup_1_callback(self)
+
+    end)
+
+    disable_all_game_feature_buttons(self, true)
+    update_game_level_progress_bar(self, 0)
+    --show_new_record_ribbon(self)
+end

@@ -1,0 +1,12 @@
+require "lib.game_config"
+require "lib.game_constants"
+
+function init(self)
+    self.player_hit_effect_factory = "#player_hit_effect_factory"
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == MSG_EMIT_PLAYER_HIT_EFFECT then
+        factory.create(self.player_hit_effect_factory, vmath.vector3(message.pos.x, message.pos.y, Z_LAYER_FX))
+    end
+end

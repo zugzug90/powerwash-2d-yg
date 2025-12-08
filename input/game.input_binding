@@ -1,0 +1,32 @@
+key_trigger {
+  input: KEY_F9
+  action: "key_f9"
+}
+key_trigger {
+  input: KEY_F7
+  action: "key_f7"
+}
+key_trigger {
+  input: KEY_F3
+  action: "key_f3"
+}
+key_trigger {
+  input: KEY_S
+  action: "key_s"
+}
+key_trigger {
+  input: KEY_N
+  action: "key_n"
+}
+key_trigger {
+  input: KEY_P
+  action: "key_p"
+}
+key_trigger {
+  input: KEY_D
+  action: "key_d"
+}
+mouse_trigger {
+  input: MOUSE_BUTTON_LEFT
+  action: "touch"
+}

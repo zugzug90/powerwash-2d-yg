@@ -1,0 +1,149 @@
+images {
+  image: "/assets/images/gui/button_square_0.png"
+}
+images {
+  image: "/assets/images/gui/panel_0_shadow.png"
+}
+images {
+  image: "/assets/images/gui/panel_0_line.png"
+}
+images {
+  image: "/assets/images/gui/panel_0_white.png"
+}
+animations {
+  id: "sounds_off_button"
+  images {
+    image: "/assets/images/gui/sounds_off_icon_x64.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "sounds_on_button"
+  images {
+    image: "/assets/images/gui/sounds_on_icon_x64.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "blink_shape"
+  images {
+    image: "/assets/images/gui/blink_shape_x50.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "money_icon"
+  images {
+    image: "/assets/images/gui/dollar_x64.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "energy_icon"
+  images {
+    image: "/assets/images/gui/water_x128.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "laser_icon"
+  images {
+    image: "/assets/images/gui/power-washing_icon_x128.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "play_ad_icon"
+  images {
+    image: "/assets/images/gui/ad_Icon_x48.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "play_ad_large_icon"
+  images {
+    image: "/assets/images/game_scene/video_player_icon_x64.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "laser_double_power_icon"
+  images {
+    image: "/assets/images/gui/laser_gun_double_power_x64.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "double_earning_icon"
+  images {
+    image: "/assets/images/gui/double_earning_x64.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "powerup_button_beams_bg_fx"
+  images {
+    image: "/assets/images/gui/bonuses_beams_x256.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "game_feature_timer_icon"
+  images {
+    image: "/assets/images/gui/game_feature_timer_icon_x32.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "play_ad_icon_large_red"
+  images {
+    image: "/assets/images/gui/AD_Icon_x64.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "progress_bar_back"
+  images {
+    image: "/assets/images/gui/progress_bar_back_422x40.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "progress_bar_stripe"
+  images {
+    image: "/assets/images/gui/progress_bar_stripe_1x40.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "red_ribbon"
+  images {
+    image: "/assets/images/gui/gui_red_ribbon_x400.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "tg_group_link_button_icon"
+  images {
+    image: "/assets/images/gui/telegram_community_button.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+extrude_borders: 2

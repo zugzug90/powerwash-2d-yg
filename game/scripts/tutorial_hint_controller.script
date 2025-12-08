@@ -1,0 +1,56 @@
+require "lib.game_constants"
+require "lib.game_config"
+
+local locales = require("lib.locales")
+
+function init(self)
+	msg.post(".", "disable")
+	label.set_text("#label", '')
+	self.original_pos = go.get_position()
+	self.original_pos.z = TUTORIAL_Z_COORD
+	go.set_position(self.original_pos, ".")
+
+	label.set_text("#label", locales.message(PLAYER_DATA.locale, GAME_MSG_LABEL_START_GAME))
+end
+
+function fixed_update(self, dt)
+	label.set_text("#label", locales.message(PLAYER_DATA.locale, GAME_MSG_LABEL_START_GAME))
+end
+
+local function show_and_animate_tutorial_hint(self)
+	msg.post(".", "enable")
+
+	go.animate(".", "scale", go.PLAYBACK_LOOP_PINGPONG, 0.7, go.EASING_LINEAR, 8, 0, function() end)
+end
+
+local function stop_animation_and_hide_tutorial_hint(self)
+	print('stop_animation_and_hide_tutorial_hint')
+	go.cancel_animations(".", "scale")
+	go.set_scale(1, ".")
+
+	msg.post(".", "disable")
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == MSG_TUTORIAL_SHOW_HINT then
+		show_and_animate_tutorial_hint(self)
+	elseif message_id == MSG_TUTORIAL_HIDE_HINT then
+		stop_animation_and_hide_tutorial_hint(self)
+	end
+end
+
+function on_input(self, action_id, action)
+	-- Add input-handling code here. The game object this script is attached to
+	-- must have acquired input focus:
+	--
+	--    msg.post(".", "acquire_input_focus")
+	--
+	-- All mapped input bindings will be received. Mouse and touch input will
+	-- be received regardless of where on the screen it happened.
+	-- Learn more: https://defold.com/manuals/input/
+	-- Remove this function if not needed
+end
+
+function on_reload(self)
+	msg.post(".", "disable")
+end

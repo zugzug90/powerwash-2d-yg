@@ -1,0 +1,42 @@
+require "lib.game_config"
+require "lib.game_constants"
+require "lib.game_rules_engine"
+require "lib.player_data_holder"
+
+function init(self)
+	-- Add initialization code here
+	-- Learn more: https://defold.com/manuals/script/
+	-- Remove this function if not needed
+end
+
+function final(self)
+	-- Add finalization code here
+	-- Learn more: https://defold.com/manuals/script/
+	-- Remove this function if not needed
+end
+
+function update(self, dt)
+	-- Add update code here
+	-- Learn more: https://defold.com/manuals/script/
+	-- Remove this function if not needed
+end
+
+local function reset_game(self)
+    --go.set_position(vmath.vector3(0, 0, go.get_position(CAMERA_ID).z), CAMERA_ID)
+end
+
+local function process_next_game_step(self)
+
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == MSG_NEW_GAME then
+        reset_game(self)
+    elseif message_id == MSG_NEXT_GAME_STEP then
+        process_next_game_step(self)
+    end
+end
+
+function on_reload(self)
+    reset_game(self)
+end

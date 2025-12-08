@@ -1,0 +1,47 @@
+require "lib.game_config"
+require "lib.game_constants"
+
+go.property("velocity_x", 0)
+go.property("velocity_y", 200)
+
+function init(self)
+	self.lifetime_seconds = 1.2
+	
+	go.animate("#player_hit_effect_label", "color.w", go.PLAYBACK_ONCE_FORWARD, 0, go.EASING_LINEAR, self.lifetime_seconds, 0)
+	go.animate("#player_hit_effect_label", "scale", go.PLAYBACK_ONCE_FORWARD, 2, go.EASING_LINEAR, self.lifetime_seconds, 0)
+end
+
+function fixed_update(self, dt)
+	if self.lifetime_seconds <= 0 then
+		go.delete()
+		return
+	end
+	local pos = go.get_position()
+	local new_pos = vmath.vector3(pos.x + self.velocity_x * dt, pos.y + self.velocity_y * dt, pos.z)
+	self.lifetime_seconds = self.lifetime_seconds - dt
+	go.set_position(new_pos)
+end
+
+function on_message(self, message_id, message, sender)
+	-- Add message-handling code here
+	-- Learn more: https://defold.com/manuals/message-passing/
+	-- Remove this function if not needed
+end
+
+function on_input(self, action_id, action)
+	-- Add input-handling code here. The game object this script is attached to
+	-- must have acquired input focus:
+	--
+	--    msg.post(".", "acquire_input_focus")
+	--
+	-- All mapped input bindings will be received. Mouse and touch input will
+	-- be received regardless of where on the screen it happened.
+	-- Learn more: https://defold.com/manuals/input/
+	-- Remove this function if not needed
+end
+
+function on_reload(self)
+	-- Add reload-handling code here
+	-- Learn more: https://defold.com/manuals/hot-reload/
+	-- Remove this function if not needed
+end

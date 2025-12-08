@@ -1,0 +1,3 @@
+prototype: "/game/collections/cleanable_collection.collection"
+load_dynamically: false
+dynamic_prototype: false

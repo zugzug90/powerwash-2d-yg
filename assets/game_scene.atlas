@@ -1,0 +1,198 @@
+animations {
+  id: "bg_white"
+  images {
+    image: "/assets/images/game_scene/bg_white_x1290.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "bg_ext_top"
+  images {
+    image: "/assets/images/game_scene/powerwash_2d_bg_x1280.jpg"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "tile"
+  images {
+    image: "/assets/images/game_scene/white_tile_x32.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "explosion"
+  images {
+    image: "/assets/images/game_scene/foam_animation_1.png"
+  }
+  images {
+    image: "/assets/images/game_scene/foam_animation_2.png"
+  }
+  images {
+    image: "/assets/images/game_scene/foam_animation_3.png"
+  }
+  images {
+    image: "/assets/images/game_scene/foam_animation_4.png"
+  }
+  playback: PLAYBACK_LOOP_FORWARD
+  fps: 12
+}
+animations {
+  id: "laser_gun"
+  images {
+    image: "/assets/images/game_scene/powerwash_gun_high_contrast.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "laser_beam"
+  images {
+    image: "/assets/images/game_scene/laser_beam_slice_x16_1_frame_1.png"
+  }
+  images {
+    image: "/assets/images/game_scene/laser_beam_slice_x16_1_frame_2.png"
+  }
+  images {
+    image: "/assets/images/game_scene/laser_beam_slice_x16_1_frame_3.png"
+  }
+  playback: PLAYBACK_LOOP_PINGPONG
+  fps: 12
+}
+animations {
+  id: "debug_sprite"
+  images {
+    image: "/assets/images/game_scene/debug_sprite_x64.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 12
+}
+animations {
+  id: "laser_beam_powerup_1"
+  images {
+    image: "/assets/images/game_scene/laser_beam_slice_enlarged_x16_1_frame_1.png"
+  }
+  images {
+    image: "/assets/images/game_scene/laser_beam_slice_enlarged_x16_1_frame_2.png"
+  }
+  images {
+    image: "/assets/images/game_scene/laser_beam_slice_enlarged_x16_1_frame_3.png"
+  }
+  playback: PLAYBACK_LOOP_PINGPONG
+  fps: 12
+}
+animations {
+  id: "visual_hint_tap_icon"
+  images {
+    image: "/assets/images/gui/tap_icon_x128.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "tile_dirty"
+  images {
+    image: "/assets/images/game_scene/dirt_tile_3_x64.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "dirt_spot_1"
+  images {
+    image: "/assets/images/game_scene/dirt_splash_x512_1.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "dirt_spot_2"
+  images {
+    image: "/assets/images/game_scene/dirt_splash_x512_2.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "dirt_spot_3"
+  images {
+    image: "/assets/images/game_scene/dirt_splash_x512_3.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "dirt_spot_4"
+  images {
+    image: "/assets/images/game_scene/dirt_spot_6.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "arrow_up_icon"
+  images {
+    image: "/assets/images/gui/arrow_up_icon_x64.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "glow_effect_large"
+  images {
+    image: "/assets/images/game_scene/Bonuses_beams_alpha_x800.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "dirt_spot_graffiti_2"
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "dirt_spot_graffiti_3"
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "dirt_spot_graffiti_4"
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "dirt_spot_graffiti_5"
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "dirt_spot_graffiti_6"
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "dirt_spot_graffiti_7"
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "dirt_spot_graffiti_8"
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "dirt_spot_graffiti_9"
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+animations {
+  id: "dirt_spot_5"
+  images {
+    image: "/assets/images/game_scene/dirt_spot_5.png"
+  }
+  playback: PLAYBACK_NONE
+  fps: 60
+}
+extrude_borders: 2

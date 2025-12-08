@@ -1,0 +1,82 @@
+require "lib.game_config"
+require "lib.game_constants"
+
+local color_green = vmath.vector4(0, 1, 0, 1)
+
+function init(self)
+	self.sounds_off = false
+	if CONFIG_DESKTOP_VERSION == false then
+		self.blocked = true
+	else
+		self.blocked = false
+	end
+	-- Draw colored text on the screen
+
+
+	--msg.post(GUI_ID, MSG_DEBUG_PRINT, {text = "sound_manager.init"})
+	--msg.post("@render:", "draw_debug_text", { text = "sound_manager.init", position = vmath.vector3(300, 380, 0), color = color_green })
+	-- Add initialization code here
+	-- Learn more: https://defold.com/manuals/script/
+	-- Remove this function if not needed
+end
+
+function final(self)
+	-- Add finalization code here
+	-- Learn more: https://defold.com/manuals/script/
+	-- Remove this function if not needed
+end
+
+function update(self, dt)
+	-- Add update code here
+	-- Learn more: https://defold.com/manuals/script/
+	-- Remove this function if not needed
+end
+
+function on_message(self, message_id, message, sender)
+	--msg.post(GUI_ID, MSG_DEBUG_PRINT, {text = hash_to_hex(message_id)})
+	if message_id == MSG_SOUND_PLAY and SOUND_ENABLED == true then
+		if self.blocked == true or self.sounds_off == true then
+			return
+		end
+		local sound_id = message.sound_id
+
+		sound.play("#" ..  sound_id, {gain = message.gain or 1}, function(self, message_id, message, sender)
+			--msg.post(GUI_ID, MSG_DEBUG_PRINT, {text = MSG_SOUND_PLAY_RAW .. ": " .. "#" .. sound_id})
+		end)
+
+	elseif message_id == MSG_SOUND_STOP then
+		sound.stop("#" .. message.sound_id)
+		--msg.post(GUI_ID, MSG_DEBUG_PRINT, {text = "sound.stop"})
+	elseif message_id == MSG_SOUND_OFF then
+		self.sounds_off = true
+	elseif message_id == MSG_SOUND_ON then
+		self.sounds_off = false
+	elseif message_id == MSG_SOUND_UNBLOCK_PLAYING then
+		self.blocked = false
+	elseif message_id == MSG_SOUND_PAUSE and message.sound_id then
+		sound.pause("#" .. message.sound_id, true)
+	elseif message_id == MSG_SOUND_RESUME and message.sound_id then
+		sound.pause("#" .. message.sound_id, false)
+	else
+
+		msg.post(GUI_ID, MSG_DEBUG_PRINT, {text = hash_to_hex(message_id)})
+	end
+end
+
+function on_input(self, action_id, action)
+	-- Add input-handling code here. The game object this script is attached to
+	-- must have acquired input focus:
+	--
+	--    msg.post(".", "acquire_input_focus")
+	--
+	-- All mapped input bindings will be received. Mouse and touch input will
+	-- be received regardless of where on the screen it happened.
+	-- Learn more: https://defold.com/manuals/input/
+	-- Remove this function if not needed
+end
+
+function on_reload(self)
+	-- Add reload-handling code here
+	-- Learn more: https://defold.com/manuals/hot-reload/
+	-- Remove this function if not needed
+end

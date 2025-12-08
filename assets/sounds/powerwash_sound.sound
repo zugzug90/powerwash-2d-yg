@@ -1,0 +1,7 @@
+sound: "/assets/sounds/powerwash_sound.ogg"
+looping: 0
+group: "master"
+gain: 0.7
+pan: 0.0
+speed: 1.0
+loopcount: 0

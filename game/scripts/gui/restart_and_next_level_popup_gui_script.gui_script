@@ -1,0 +1,500 @@
+local transitions = require "monarch.transitions.gui"
+local monarch = require "monarch.monarch"
+local druid = require("druid.druid")
+
+require "lib.game_rules_engine"
+require "lib.player_data_holder"
+require "lib.game_integrations_sdk_holder"
+local player_improvements_manager = require "lib.player_improvements_manager"
+local game_features_manager = require "lib.game_features_manager"
+local sound_manager = require "lib.sound_manager"
+
+local locales = require("lib.locales")
+
+local sounds = {
+    laser_power_level = "laser_power_level_powerup",
+    battery_capacity_level = "battery_capacity_level_powerup",
+    money_per_tile_earning_level = "money_per_tile_earning_level_powerup"
+}
+
+local function show_interstitial_ad(self, on_complete_callback)
+    print('  - show_interstitial_ad(self, on_complete_callback)')
+    GPI.show_interstitial_ad(function()
+        self.locked = true
+        print('self.locked = TRUE')
+
+        for key, id in pairs(sounds) do
+            msg.post(SOUND_MANAGER_ID, MSG_SOUND_STOP_RAW, {sound_id = id})
+        end
+
+        print('show_interstitial_ad::sound_manager.pause_sounds_if_needed()')
+        GAME_RULES_ENGINE.on_window_event(true)
+        sound_manager.pause_sounds_if_needed()
+    end, function (self, was_shown)
+
+    end, function (self, was_shown)
+        self.locked = false
+        on_complete_callback()
+        print('[adv_close] self.locked = false')
+        sound_manager.turn_on_sounds_back_if_needed()
+        GAME_RULES_ENGINE.on_window_event(false)
+    end, function (self, was_shown)
+        self.locked = false
+        on_complete_callback()
+        print('self.locked = false')
+        sound_manager.turn_on_sounds_back_if_needed()
+        GAME_RULES_ENGINE.on_window_event(false)
+    end, function (self, was_shown)
+        self.locked = false
+        on_complete_callback()
+        print('self.locked = false')
+        sound_manager.turn_on_sounds_back_if_needed()
+        GAME_RULES_ENGINE.on_window_event(false)
+    end,
+    -- adv_skipped_by_timeout_or_rules()
+    function()
+        self.locked = false
+        on_complete_callback()
+        print('self.locked = false')
+        sound_manager.turn_on_sounds_back_if_needed()
+        GAME_RULES_ENGINE.on_window_event(false)
+    end)
+end
+
+local function disable_button(self, button_id)
+    local node = self.improvement_buttons[button_id].gui_node
+    local child_elements = gui.get_tree(node)
+
+    for id, el in pairs(child_elements) do
+        if el ~= node then
+            gui.set_color(el, COLOR_TRANSPARENT_50_PERCENT)
+        end
+
+    end
+
+    self.improvement_buttons[button_id].disabled = true
+end
+
+local function enable_button(self, button_id)
+    local node = self.improvement_buttons[button_id].gui_node
+    local child_elements = gui.get_tree(node)
+
+    for id, el in pairs(child_elements) do
+        if el ~= node then
+            gui.set_color(el, COLOR_WHITE)
+        end
+    end
+
+    self.improvement_buttons[button_id].disabled = false
+end
+
+local function update_cost_label_for_button_with_text(self, button_id, text_supplier)
+    local button = self.improvement_buttons[button_id]
+    local stat_name = button.stat_name
+    local player_stat_name = button.player_stat_name
+    local next_level = PLAYER_DATA.player_improvements[player_stat_name] + 1
+
+
+    if player_improvements_manager.progression_costs[stat_name][next_level] then
+
+        local node = button.gui_node
+        local child_elements = gui.get_tree(node)
+        for id, el in pairs(child_elements) do
+            if id == hash(button.label) then
+                gui.set_text(el, text_supplier(stat_name, next_level))
+            end
+        end
+
+    end
+end
+
+local function update_cost_label_for_button(self, button_id)
+    update_cost_label_for_button_with_text(self, button_id, function(stat_name, level)
+        return '$ ' .. player_improvements_manager.progression_costs[stat_name][level]
+    end)
+end
+
+local function update_cost_label_for_all_buttons(self)
+    for id, button in pairs(self.improvement_buttons) do
+        update_cost_label_for_button(self, id)
+    end
+end
+
+local function set_custom_text_for_cost_label_for_all_buttons(self, custom_text)
+    for id, button in pairs(self.improvement_buttons) do
+        update_cost_label_for_button_with_text(self, id, function(stat_name, level)
+            return custom_text
+        end)
+    end
+end
+
+local function disable_all_improvement_buttons(self)
+    print('disable_all_improvement_buttons(self)')
+    for id, button in pairs(self.improvement_buttons) do
+        disable_button(self, id)
+    end
+end
+
+local function enable_improvement_buttons_if_needed(self)
+
+    for id, button in pairs(self.improvement_buttons) do
+        local stat_name = button.stat_name
+        local player_stat_name = button.player_stat_name
+        local next_level = PLAYER_DATA.player_improvements[player_stat_name] + 1
+
+        if PLAYER_DATA.improvement_buttons_should_be_locked_with_rewarded_ads == false or self.improvement_rewarded_ad_consumed_or_declined == true then
+            if player_improvements_manager.progression_costs[stat_name][next_level] and player_improvements_manager.progression_costs[stat_name][next_level] <= PLAYER_DATA.weapon_stats.money_earned then
+                enable_button(self, id)
+            else
+                disable_button(self, id)
+            end
+
+        elseif self.improvement_rewarded_ad_consumed_or_declined == false then
+            enable_button(self, id)
+        end
+    end
+end
+
+local function start_countdown_animation(self, on_countdown_complete_callback)
+    local node = gui.get_node("game_notification_label")
+    gui.set_text(node, locales.message(PLAYER_DATA.locale, GAME_MSG_LABEL_NOTIFICATION_AD_IN) .. 3)
+
+    timer.delay(0.8, false, function()
+        gui.set_text(node, locales.message(PLAYER_DATA.locale, GAME_MSG_LABEL_NOTIFICATION_AD_IN) .. 2)
+        timer.delay(0.8, false, function()
+            gui.set_text(node, locales.message(PLAYER_DATA.locale, GAME_MSG_LABEL_NOTIFICATION_AD_IN) .. 1)
+            timer.delay(0.8, false, function()
+                gui.set_position(self.game_notification_box, RECORD_RIBBON_WEST_HIDDEN_POS)
+                on_countdown_complete_callback()
+            end)
+        end)
+    end)
+end
+
+local function update_gui_elements(weapon_stats)
+    msg.post(GUI_ID, MSG_UPDATE_WEAPON_STATS_RAW, weapon_stats)
+end
+
+local function reset_game_notification_box_state(self)
+    gui.set_position(self.game_notification_box, RECORD_RIBBON_WEST_HIDDEN_POS)
+    gui.set_position(self.game_notification_box, RECORD_RIBBON_WEST_HIDDEN_POS)
+end
+
+local function show_game_notification_box(self)
+
+    gui.animate(self.game_notification_box, gui.PROP_POSITION, RECORD_RIBBON_CENTER_POS, gui.EASING_LINEAR, 0.2, 0.0, function(self, node)
+        start_countdown_animation(self, function()
+            --GAME_RULES_ENGINE.on_next_game_step()
+        end)
+
+    end, gui.PLAYBACK_ONCE_FORWARD)
+end
+
+local function upgrade_player_stat_level_if_possible(self, button_id, no_money_check)
+
+    local button = self.improvement_buttons[button_id]
+    local stat_name = button.stat_name
+    local player_stat_name = button.player_stat_name
+
+    local next_level = PLAYER_DATA.player_improvements[player_stat_name] + 1
+    local next_level_cost = 0
+
+    if player_improvements_manager.progression_costs[stat_name][next_level] then
+        next_level_cost = player_improvements_manager.progression_costs[stat_name][next_level]
+    end
+
+    if next_level_cost and (next_level_cost <= PLAYER_DATA.weapon_stats.money_earned or no_money_check == true) then
+
+        if no_money_check ~= true then
+            PLAYER_DATA.weapon_stats.money_earned = PLAYER_DATA.weapon_stats.money_earned - next_level_cost
+        end
+
+        if player_improvements_manager.progression[stat_name][next_level] then
+            timer.delay(0.1, false, function()
+                msg.post(SOUND_MANAGER_ID, MSG_SOUND_PLAY_RAW, {sound_id = sounds[player_stat_name]})
+            end)
+
+            PLAYER_DATA.player_improvements[player_stat_name] = PLAYER_DATA.player_improvements[player_stat_name] + 1
+        end
+
+        GAME_RULES_ENGINE.on_player_stats_updated({to_persist = {player_improvements = PLAYER_DATA.player_improvements, weapon_stats = {
+            money_earned = PLAYER_DATA.weapon_stats.money_earned
+        }}, to_log_metrics = {[player_stat_name] = PLAYER_DATA.player_improvements[player_stat_name]} } )
+
+        update_cost_label_for_button(self, button_id)
+
+        disable_all_improvement_buttons(self)
+        enable_improvement_buttons_if_needed(self)
+        update_gui_elements({money_earned = PLAYER_DATA.weapon_stats.money_earned})
+        gui.play_particlefx(gui.get_node(self.improvement_buttons[button_id].particlefx))
+
+        gui.animate(self.improvement_buttons[button_id].icon_gui_node, gui.PROP_COLOR, COLOR_GREEN, gui.EASING_LINEAR, 0.4, 0.0, nil, gui.PLAYBACK_ONCE_PINGPONG)
+        gui.animate(self.improvement_buttons[button_id].icon_gui_node, gui.PROP_SCALE, 1.75, gui.EASING_LINEAR, 0.4, 0.0, nil, gui.PLAYBACK_ONCE_PINGPONG)
+    end
+end
+
+local function upgrade_player_stat_level_if_possible_manually_or_via_rewarded_ad(self, button_id)
+    if PLAYER_DATA.improvement_buttons_should_be_locked_with_rewarded_ads == false or self.improvement_rewarded_ad_consumed_or_declined == true then
+        upgrade_player_stat_level_if_possible(self, button_id, false)
+        print('self.improvement_buttons[button_id].particlefx: ', self.improvement_buttons[button_id].particlefx, button_id)
+    else
+        gui.play_particlefx(gui.get_node(self.improvement_buttons[button_id].particlefx))
+        self.improvement_rewarded_ad_consumed_or_declined = true
+        game_features_manager.activate_feature_via_rewarded_ad(self, button_id, hash("restart_and_next_level_game_screen"))
+    end
+end
+
+function final(self)
+    self.druid:final()
+end
+
+function update(self, dt)
+    self.druid:update(dt)
+end
+
+function on_input(self, action_id, action)
+    return self.druid:on_input(action_id, action)
+end
+
+local function disable_game_action_buttons(self)
+    self.game_actions_disabled = true
+end
+
+local function start_interstitial_actions(self)
+    local can_show_interstitial_ad = GPI.can_show_interstitial_ad()
+    if can_show_interstitial_ad == true then
+        disable_game_action_buttons(self)
+        show_game_notification_box(self)
+    end
+
+end
+
+local function get_improvement_name(self, button_id)
+    return self.improvement_buttons[button_id].improvement_name
+end
+
+local function disable_rewarded_ad_icons(self, button_id)
+    local button = self.improvement_buttons[button_id]
+    local child_elements = gui.get_tree(button.gui_node)
+
+    for id, el in pairs(child_elements) do
+
+        if id == hash(button.ad_gui_id) then
+            gui.delete_node(el)
+        end
+    end
+
+end
+
+local function disable_rewarded_ads(self)
+    for id, button in pairs(self.improvement_buttons) do
+        disable_rewarded_ad_icons(self, id)
+    end
+end
+
+local function calculate_if_improvement_buttons_should_be_locked_with_rewarded_ads_flag_state(self)
+
+    if PLAYER_DATA.improvement_features_spawn.spawn_counter % PLAYER_DATA.improvement_features_spawn.spawn_factor == 0 then
+        PLAYER_DATA.improvement_buttons_should_be_locked_with_rewarded_ads = true
+    else
+        PLAYER_DATA.improvement_buttons_should_be_locked_with_rewarded_ads = false
+    end
+
+    PLAYER_DATA.improvement_features_spawn.spawn_counter = PLAYER_DATA.improvement_features_spawn.spawn_counter + 1
+end
+
+local function disable_game_feature_rewarded_ad(self, button_id)
+    local button = self.game_feature_buttons[button_id]
+    local child_elements = gui.get_tree(button.gui_node)
+
+    for id, el in pairs(child_elements) do
+
+        if id == hash(button.ad_gui_id) then
+            gui.delete_node(el)
+        end
+    end
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("transition_show_in") then
+
+        gui.set_text(self.title_box_label_node, locales.message(PLAYER_DATA.locale, GAME_MSG_LABEL_RESTART_GAME_TITLE))
+        self.is_shown = true
+        self.improvement_rewarded_ad_consumed_or_declined = false
+
+        disable_all_improvement_buttons(self)
+
+        calculate_if_improvement_buttons_should_be_locked_with_rewarded_ads_flag_state(self)
+        if PLAYER_DATA.improvement_buttons_should_be_locked_with_rewarded_ads == true then
+            enable_improvement_buttons_if_needed(self)
+            set_custom_text_for_cost_label_for_all_buttons(self, locales.message(PLAYER_DATA.locale, GAME_MSG_LABEL_FREE))
+        else
+            enable_improvement_buttons_if_needed(self)
+            update_cost_label_for_all_buttons(self)
+            disable_rewarded_ads(self)
+        end
+
+    elseif message_id == hash("transition_back_out") then
+        self.is_shown = false
+    elseif message_id == hash("transition_done") and self.is_shown == false then
+
+        if PLAYER_DATA.level_completed_state == true then
+            print('GAME_RULES_ENGINE.on_next_level()')
+            GAME_RULES_ENGINE.on_next_level()
+        else
+            GAME_RULES_ENGINE.on_restart_game()
+        end
+
+    elseif message_id == MSG_GUI_SHOW_GAME_NOTIFICATION_BOX then
+        show_game_notification_box(self)
+
+    elseif message_id == MSG_REWARD_GRANTED then
+        print('feature_id', message.feature_id)
+        game_features_manager.unlock_feature(self,
+                locales.message(PLAYER_DATA.locale, GAME_MSG_POWERUP_GRANTED) .. get_improvement_name(self, message.feature_id),
+                message.feature_id
+        )
+        --switch_improvement_buttons_should_be_locked_with_rewarded_ads_flag_state(self)
+
+    end
+    self.transition.handle(message_id, message, sender)
+    self.druid:on_message(message_id, message, sender)
+end
+
+local function relocalize_gui(self)
+    print('relocalize_gui', PLAYER_DATA.locale)
+    for id, button in pairs(self.improvement_buttons) do
+        --print('button.improvement_name: ', button.improvement_name)
+        print('gui.get_node(button.label): ', gui.get_node(button.label))
+        gui.set_text(gui.get_node(button.name_label), '+ ' .. button.improvement_name)
+    end
+
+    gui.set_text(gui.get_node('play_button_label'), locales.message(PLAYER_DATA.locale, GAME_MSG_BUTTON_CONTINUE))
+end
+
+
+function init(self)
+    print('restart: init(self)', PLAYER_DATA.locale)
+    math.randomseed(os.time())
+    math.random();math.random();math.random(); -- discards first few RNG number
+
+    self.druid = druid.new(self)
+    self.is_shown = false
+    self.title_box_label_node = gui.get_node("title_box_label")
+    self.game_notification_box = gui.get_node("game_notification_rewards_box")
+
+    self.locked = false
+    self.gpi = GPI
+
+    self.improvement_buttons = {
+        improve_power_button = {
+            disabled = true,
+            gui_node = gui.get_node("improve_power_button_box"),
+            player_stat_name = 'laser_power_level',
+            stat_name = 'laser_power_levels',
+            name_label = 'improve_power_button_label',
+            label = 'improve_power_cost_label',
+            improvement_name = locales.message(PLAYER_DATA.locale, GAME_MSG_LABEL_IMPROVEMENTS_LASER_POWER),
+            ad_gui_id = 'play_ad_icon',
+            particlefx = 'improve_power_button_particlefx',
+            icon_gui_node = gui.get_node("improve_power_button")
+        },
+        improve_capacity_button = {
+            disabled = true,
+            gui_node = gui.get_node("improve_capacity_button_box"),
+            player_stat_name = 'battery_capacity_level',
+            stat_name = 'battery_capacity_levels',
+            label = 'improve_capacity_cost_label',
+            name_label = 'improve_capacity_button_label',
+            improvement_name = locales.message(PLAYER_DATA.locale, GAME_MSG_LABEL_IMPROVEMENTS_LASER_CAPACITY),
+            ad_gui_id = 'play_ad_icon_2',
+            particlefx = 'improve_capacity_button_particlefx',
+            icon_gui_node = gui.get_node("improve_capacity_button")
+        },
+        improve_earning_button = {
+            disabled = true,
+            gui_node = gui.get_node("improve_earning_button_box"),
+            player_stat_name = 'money_per_tile_earning_level',
+            stat_name = 'money_per_tile_earning_levels',
+            label = 'improve_earning_cost_label',
+            name_label = 'improve_earning_button_label',
+            improvement_name = locales.message(PLAYER_DATA.locale, GAME_MSG_LABEL_IMPROVEMENTS_EARNING),
+            ad_gui_id = 'play_ad_icon_3',
+            particlefx = 'improve_earning_button_particlefx',
+            icon_gui_node = gui.get_node("improve_earning_button")
+        },
+    }
+
+    game_features_manager.init_improvement_feature_callbacks(disable_rewarded_ads, upgrade_player_stat_level_if_possible, update_cost_label_for_all_buttons)
+
+    --msg.post(SOUND_MANAGER_ID, MSG_SOUND_PLAY_RAW, {sound_id = "pop_short"})
+
+    --[[    function M.slide_in_top(node, to, easing, duration, delay, cb)
+            slide_in(TOP, node, to.pos, easing, duration, delay, cb)
+        end]]
+    self.transition = transitions.create(gui.get_node("root"))
+
+                                 .show_in(transitions.slide_in_bottom, gui.EASING_OUTQUAD, 0.6, 0)
+
+                                 .show_out(transitions.slide_out_bottom, gui.EASING_INQUAD, 0.6, 0)
+
+                                 .back_in(transitions.slide_in_bottom, gui.EASING_OUTQUAD, 0.6, 0)
+
+                                 .back_out(transitions.slide_out_bottom, gui.EASING_INQUAD, 0.6, 0)
+    --.show_out(transitions.slide_out_bottom, gui.EASING_INQUAD, 0.6, 0)
+
+
+    self.button = self.druid:new_button(gui.get_node("restart_game_button_box_wrapper"), function()
+        if self.locked == true then
+            return
+        end
+        msg.post(GUI_ID, MSG_GUI_SHOW_BUBBLES_WALL)
+        show_interstitial_ad(self, function()
+            print('show_interstitial_ad')
+            msg.post(SOUND_MANAGER_ID, MSG_SOUND_PLAY_RAW, {sound_id = "bubble_sound"})
+            monarch.hide(hash("restart_and_next_level_game_screen"))
+        end)
+    end)
+
+    self.improve_power_button = self.druid:new_button(gui.get_node("improve_power_button_box"), function()
+        if self.locked == true then
+            return
+        end
+        if self.improvement_buttons.improve_power_button.disabled == true then
+            return
+        end
+
+        upgrade_player_stat_level_if_possible_manually_or_via_rewarded_ad(self, 'improve_power_button')
+    end)
+
+    self.improve_capacity_button = self.druid:new_button(gui.get_node("improve_capacity_button_box"), function()
+        if self.locked == true then
+            return
+        end
+        if self.improvement_buttons.improve_capacity_button.disabled == true then
+            return
+        end
+
+        upgrade_player_stat_level_if_possible_manually_or_via_rewarded_ad(self, 'improve_capacity_button')
+    end)
+
+    self.improve_earning_button = self.druid:new_button(gui.get_node("improve_earning_button_box"), function()
+        if self.locked == true then
+            return
+        end
+        if self.improvement_buttons.improve_earning_button.disabled == true then
+            return
+        end
+
+        upgrade_player_stat_level_if_possible_manually_or_via_rewarded_ad(self, 'improve_earning_button')
+    end)
+
+    -- TODO: rework to use gpi
+    if CONFIG_DESKTOP_VERSION ~= true then
+        msg.post(SOUND_MANAGER_ID, MSG_SOUND_PLAY_RAW, {sound_id = "bubble_sound"})
+    end
+
+    reset_game_notification_box_state(self)
+
+    relocalize_gui(self)
+end

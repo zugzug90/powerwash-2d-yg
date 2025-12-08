@@ -1,0 +1,189 @@
+require("lib.game_config")
+require("lib.game_constants")
+require "lib.player_data_holder"
+
+local locales = require("lib.locales")
+
+local level_difficulty_progression_manager = require "lib.level_difficulty_progression_manager"
+local total_variants = 4
+local scale = 0.5
+
+function init(self)
+
+    local hp_multiplier = level_difficulty_progression_manager.progression.dirt_spot_hp_multiplier[PLAYER_DATA.current_level] or level_difficulty_progression_manager.progression.dirt_spot_hp_multiplier[#level_difficulty_progression_manager.progression.dirt_spot_hp_multiplier]
+    local dirt_spot_scale =  level_difficulty_progression_manager.progression.dirt_spot_scale[PLAYER_DATA.current_level] or level_difficulty_progression_manager.progression.dirt_spot_scale[#level_difficulty_progression_manager.progression.dirt_spot_scale]
+
+    self.original_scale = dirt_spot_scale or scale
+
+    self.hp = TILE_CRUSHER_TILE_TILE_HP * hp_multiplier
+    self.original_hp = self.hp
+    self.destroyed = false
+    self.particlefx_played = false
+    self.damage = TILE_CRUSHER_TILE_DAMAGE * PLAYER_DATA.player_improvements.laser_power_level * PLAYER_DATA.player_improvements.laser_power_level_multiplier
+
+    local dirt_spot_sprite_id = splitmix64.random(total_variants)
+    sprite.play_flipbook("#sprite", "dirt_spot_" .. dirt_spot_sprite_id)
+
+    go.set_scale(self.original_scale, ".")
+    msg.post("#effects_sprite", "disable")
+
+    msg.post("#tutorial_label_1", "disable")
+    msg.post("#tutorial_sprite_1", "disable")
+
+    local pos = go.get_position()
+    pos.z = DIRT_SPOT_Z_COORD
+    go.set_position(pos, ".")
+
+
+    self.localized_tutorial = false
+    self.original_pos = pos
+end
+
+function final(self)
+    particlefx.stop("#particlefx")
+    go.delete('#particlefx')
+end
+
+local function resize(self, scale_level)
+    go.set_scale(scale_level, ".")
+end
+
+local function recolor_alpha(self, sprite_id, alpha_level)
+    go.set(sprite_id, "tint.w", alpha_level)
+end
+
+local function recolor(self, sprite_id, color_vector)
+    if color_vector then
+        go.set(sprite_id, "tint.x", color_vector.x / 255 or 1)
+        go.set(sprite_id, "tint.y", color_vector.y / 255 or 1)
+        go.set(sprite_id, "tint.z", color_vector.z / 255 or 1)
+    else
+        go.set(sprite_id, "tint.x", 29 / 255)
+        go.set(sprite_id, "tint.y", 29 / 255)
+        go.set(sprite_id, "tint.z", 29 / 255)
+    end
+end
+
+
+function fixed_update(self, dt)
+    if self.localized_tutorial == false then
+        self.localized_tutorial = true
+        print('label.set_text("#tutorial_label_1", locales.message(PLAYER_DATA.locale, GAME_MSG_LABEL_RESTART_GAME_TITLE))', PLAYER_DATA.locale)
+        label.set_text("#tutorial_label_1", locales.message(PLAYER_DATA.locale, GAME_MSG_LABEL_TUTORIAL_WASH_ME))
+    end
+
+    if self.is_being_damaged == false or PLAYER_DATA.weapon_stats.laser_energy <= 0 then
+        msg.post("#effects_sprite", "disable")
+    end
+    if self.is_being_damaged == true and PLAYER_DATA.weapon_stats.laser_energy > 0 then
+
+        msg.post("#tutorial_label_1", "disable")
+        msg.post("#tutorial_sprite_1", "disable")
+
+        recolor_alpha(self, "#sprite", math.max(self.hp / self.original_hp, 0.3))
+        --resize(self, math.min((1 - self.hp / self.original_hp) * self.original_scale, self.original_scale))
+        --resize(self, math.min((1 - self.hp / self.original_hp) * self.original_scale, self.original_scale))
+        go.set_rotation(vmath.quat_rotation_z(-math.pi / 10 + (self.hp / self.original_hp) * math.pi / 10), ".")
+
+        local shifted_pos = vmath.vector3(self.original_pos.x, self.original_pos.y, self.original_pos.z)
+
+
+        local shift_pover_levels = {
+            [2] = 0.5,
+            [3] = 0.75,
+            [4] = 0.9,
+            [5] = 1.25,
+            [6] = 1.75,
+            [7] = 2.25
+    	}
+
+        local shift_power_koeff = 0
+        if PLAYER_DATA.player_improvements.laser_power_level > 1 then
+            --additional_scale_delta = math.max(0.5, 1 * PLAYER_DATA.player_improvements.laser_power_level / 8)
+            if shift_pover_levels[PLAYER_DATA.player_improvements.laser_power_level] then
+                shift_power_koeff = shift_pover_levels[PLAYER_DATA.player_improvements.laser_power_level]
+            else
+                shift_power_koeff = shift_pover_levels[7]
+            end
+	    end
+
+        shift_power_koeff = shift_pover_levels[7]
+
+        shifted_pos.x = self.original_pos.x + (1 - self.hp / self.original_hp) * 30 * (1 + shift_power_koeff)
+        shifted_pos.y = self.original_pos.y - (1 - self.hp / self.original_hp) * 20 * (1 + shift_power_koeff)
+
+        --[[ if shifted_pos.x > GAME_SCREEN_W - 100 then
+            shifted_pos.x = GAME_SCREEN_W - 100
+        end
+
+
+        if shifted_pos.y < 300 then
+            shifted_pos.y = 300
+        end ]]
+
+        go.set_position(shifted_pos, ".")
+
+        msg.post("#effects_sprite", "enable")
+
+        if self.particlefx_played == false then
+            self.particlefx_played = true
+            particlefx.play("#particlefx")
+        end
+    else
+        particlefx.stop("#particlefx")
+        self.particlefx_played = false
+    end
+
+    if self.hp <= 0 then
+        self.is_being_damaged = false
+        if self.destroyed == false then
+            self.destroyed = true
+            msg.post(LEVEL_GENERATOR_ID, MSG_DIRT_SPOT_DESTROYED)
+            msg.post(OBJ_PLAYER_ID, MSG_DIRT_SPOT_DESTROYED)
+            msg.post("#collisionobject", "disable")
+            msg.post("#effects_sprite", "disable")
+            msg.post("#sprite", "disable")
+        end
+
+        particlefx.stop("#particlefx")
+
+        self.tile_color = self.tile_original_color
+        return
+    end
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == MSG_HIT_CLEANABLE_DIRT_SPOT then
+        self.is_being_damaged = true
+        self.hp = self.hp - self.damage
+    elseif message_id == MSG_STOP_HIT_CLEANABLE_DIRT_SPOT then
+        self.is_being_damaged = false
+    elseif message_id == MSG_RECOLOR_DIRT_SPOT then
+        if message.sprite_id then
+            sprite.play_flipbook("#sprite", message.sprite_id)
+        end
+        print('message.dirt_spot_color', message.dirt_spot_color)
+        recolor(self, "#sprite", message.dirt_spot_color)
+    elseif message_id == SHOW_TUTORIAL_HINT then
+        msg.post("#tutorial_label_1", "enable")
+        msg.post("#tutorial_sprite_1", "enable")
+    end
+end
+
+function on_input(self, action_id, action)
+    -- Add input-handling code here. The game object this script is attached to
+    -- must have acquired input focus:
+    --
+    --    msg.post(".", "acquire_input_focus")
+    --
+    -- All mapped input bindings will be received. Mouse and touch input will
+    -- be received regardless of where on the screen it happened.
+    -- Learn more: https://defold.com/manuals/input/
+    -- Remove this function if not needed
+end
+
+function on_reload(self)
+    -- Add reload-handling code here
+    -- Learn more: https://defold.com/manuals/hot-reload/
+    -- Remove this function if not needed
+end
