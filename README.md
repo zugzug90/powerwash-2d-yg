@@ -30,7 +30,7 @@
 
 ![Демо геймплея](docs/img/powerwash_demo.gif)
 
-Играбильное демо: **[>> [ИГРАТЬ] <<](https://zugzug90.github.io/powerwash-2d-yg/index.html)**
+Играбельное демо: **[>> [ИГРАТЬ] <<](https://zugzug90.github.io/powerwash-2d-yg/index.html)**
 
 # Credits
 1. GUI & Icons
