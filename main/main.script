@@ -268,6 +268,11 @@ function on_message(self, message_id, message, sender)
 		GAME_RULES_ENGINE.on_new_game()
 	elseif message_id == MSG_BOOTSTRAP_INIT_GAME then
 		if self.games_platform_integration_init_done == false then
+			if DEMO_BUILD == true then
+				self.games_platform_integration_init_done = true
+				msg.post("#", "init_game")
+				return
+			end
 			self.games_platform_integration.init(
 					{init_callback = function()
 						self.games_platform_integration_init_done = true
