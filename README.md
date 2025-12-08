@@ -38,14 +38,16 @@
 Играбельное демо: **[>> [ИГРАТЬ] <<](https://zugzug90.github.io/powerwash-2d-yg/index.html)**
 
 # Credits
-1. GUI & Icons
+
+## 1. GUI & Icons
 
 <a href="https://www.flaticon.com/free-icons/water-drop" title="water drop icons">Water drop icons created by Karacis - Flaticon</a>
+
 <a href="https://www.flaticon.com/free-icons/coin" title="coin icons">Coin icons created by DinosoftLabs - Flaticon</a>
 
 https://kenney.nl/assets/ui-pack
 
-2. Levels, images
+## 2. Levels, images
 
 1. "Brick wall background" by Alex Dulak is licensed under CC BY 2.0.
 1. "Old TV" by stevestein1982 is licensed under CC BY 2.0.
