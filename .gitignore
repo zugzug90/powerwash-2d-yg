@@ -13,3 +13,4 @@ builtins
 *.class
 **/target
 **/generated
+/.editor_settings
