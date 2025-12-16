@@ -13,6 +13,10 @@ local function init_handler(self, err)
     if err then
         print('init_handler: Error')
         print("Something bad happened :(", err)
+
+        if games_platform_integration.init_callback then
+            games_platform_integration.init_callback()
+        end
     else
         --
         -- SDK is ready!
@@ -43,13 +47,25 @@ games_platform_integration.get_remote_config = function(options, callback)
     if jstodef then
         html5.run( 'try {console.log("' .. '[INFO] ' .. 'games_platform_integration.get_remote_config' .. '")} catch(error) {}' )
     end
-    yagames.flags_get(options, callback)
+    if not pcall(function ()
+        yagames.flags_get(options, callback)
+    end) then 
+        callback({})
+    end
 end
 
 games_platform_integration.init = function(options)
-    print('games_platform_integration.init', options)
-    games_platform_integration.init_callback = options.init_callback
-    yagames.init(init_handler)
+    if pcall(function ()
+        print('games_platform_integration.init', options)
+        games_platform_integration.init_callback = options.init_callback
+        yagames.init(init_handler);
+    end) then
+        print('games_platform_integration.init: pcall success!')
+    else
+        print('games_platform_integration.init: pcall failed! Are you not on real YG domain or just locally in browser?')
+        options.init_callback()
+    end
+    
 end
 
 games_platform_integration.update_player_data = function(options)
